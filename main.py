@@ -144,4 +144,103 @@ async def show_menu(message: types.Message):
 # ================================================
 
 # ============ ПОКАЗ ВВОДНОГО БЛОКА ============
-async
+async def send_block_intro(chat_id):
+    data = user_data[chat_id]
+    block = blocks[data["current_block"]]
+    intro = block["intro"]
+
+    try:
+        await bot.send_photo(
+            chat_id=chat_id,
+            photo=intro["image_url"],
+            caption=intro["text"],
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        await bot.send_message(
+            chat_id=chat_id,
+            text=intro["text"] + "\n\n📷 (Изображение недоступно)",
+            parse_mode="HTML"
+        )
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➡️ Начать тест", callback_data="start_quiz")],
+        [InlineKeyboardButton(text="🏠 В главное меню", callback_data="main_menu")]
+    ])
+    await bot.send_message(chat_id, "Готов пройти тест?", reply_markup=kb)
+# ================================================
+
+# ============ ОБРАБОТЧИКИ КНОПОК (инлайн) ============
+@dp.callback_query(F.data == "main_menu")
+async def go_to_menu(callback: types.CallbackQuery):
+    await callback.message.delete()
+    await show_menu(callback.message)
+
+@dp.callback_query(F.data == "start_quiz")
+async def start_quiz(callback: types.CallbackQuery):
+    chat_id = callback.message.chat.id
+    user_data[chat_id]["current_question"] = 0
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await ask_question(chat_id)
+# ================================================
+
+# ============ ОТПРАВКА ВОПРОСОВ ============
+async def ask_question(chat_id):
+    data = user_data[chat_id]
+    block = blocks[data["current_block"]]
+    questions = block["questions"]
+
+    if data["current_question"] >= len(questions):
+        await bot.send_message(chat_id, "✅ Блок пройден!")
+        data["current_block"] += 1
+        if data["current_block"] >= len(blocks):
+            await bot.send_message(
+                chat_id,
+                "🎉 Поздравляю! Ты прошёл все блоки!\n\nХочешь начать сначала или вернуться в меню?",
+                reply_markup=get_main_menu()
+            )
+        else:
+            await asyncio.sleep(1.5)
+            await send_block_intro(chat_id)
+        return
+
+    q = questions[data["current_question"]]
+    kb = InlineKeyboardMarkup(inline_keyboard=[])
+    for idx, opt in enumerate(q["options"]):
+        kb.inline_keyboard.append([InlineKeyboardButton(text=opt, callback_data=f"ans_{idx}")])
+
+    await bot.send_message(chat_id, f"🔹 Вопрос:\n\n{q['question']}", reply_markup=kb)
+# ================================================
+
+# ============ ОБРАБОТКА ОТВЕТОВ ============
+@dp.callback_query(F.data.startswith("ans_"))
+async def handle_answer(callback: types.CallbackQuery):
+    chat_id = callback.message.chat.id
+    user_choice = int(callback.data.split("_")[1])
+    data = user_data[chat_id]
+    block = blocks[data["current_block"]]
+    q = block["questions"][data["current_question"]]
+
+    if user_choice == q["correct"]:
+        result = "✅ Правильно!"
+    else:
+        correct = q["options"][q["correct"]]
+        result = f"❌ Неверно.\nПравильно: <b>{correct}</b>"
+
+    await callback.message.edit_text(
+        callback.message.text + f"\n\n{result}",
+        parse_mode="HTML"
+    )
+
+    await asyncio.sleep(1.5)
+    data["current_question"] += 1
+    await ask_question(chat_id)
+# ================================================
+
+# ============ ЗАПУСК ============
+async def main():
+    await set_commands(bot)
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
