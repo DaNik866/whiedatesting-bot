@@ -9,7 +9,7 @@ print("Этап 1: Импорты выполнены")
 
 # === ТОКЕН БОТА ===
 import os
-TOKEN = os.getenv(8340607883:AAEkR8s9ZSoK0Mf0J9Hl7mskMjFPfCU1UrE)
+TOKEN = os.getenv("BOT_TOKEN")
 print("Этап 2: Токен загружен")
 
 # === БЛОКИ: ВВОДНЫЕ + ВОПРОСЫ ===
